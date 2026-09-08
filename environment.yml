@@ -1,0 +1,18 @@
+name: ecmwf_env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - eccodes
+  - cfgrib
+  - ecmwf-opendata
+  - xarray
+  - geopandas
+  - shapely
+  - matplotlib
+  - pandas
+  - numpy
+  - pip
+  - pip:
+    - streamlit
