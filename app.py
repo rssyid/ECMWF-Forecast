@@ -30,11 +30,11 @@ CATEGORY_LABELS = [
 ]
 
 # ==========================================
-# 2. FUNGSI PEMROSESAN ECMWF
+# 2. FUNGSI PEMROSESAN ECMWF 
 # ==========================================
-@st.cache_data(show_spinner=False)
-def get_ecmwf_dissolved(date_str, target_grib="temp_aifs.grib2"):
-    """Mengunduh data ECMWF dan mengembalikan GeoDataFrame yang sudah di-dissolve"""
+# CATATAN: Cache Streamlit sengaja dimatikan agar tidak menyebabkan Out of Memory (OOM) 
+def get_ecmwf_spatial(date_str, target_grib="temp_aifs.grib2"):
+    """Mengunduh data ECMWF dan mengembalikan GeoDataFrame tanpa dissolve untuk menghemat RAM"""
     client = Client(source="ecmwf", beta=False)
     
     request = {
@@ -90,9 +90,8 @@ def get_ecmwf_dissolved(date_str, target_grib="temp_aifs.grib2"):
     gdf = gpd.GeoDataFrame(df, geometry=geoms, crs="EPSG:4326")
     gdf = gdf.clip(shapely_box(lon_min, lat_min, lon_max, lat_max))
 
-    # Dissolve berdasarkan warna untuk mempercepat plotting Matplotlib
-    dis = gdf.dissolve(by="cat_lbl", as_index=False, aggfunc={"color": "first"})
-    return dis
+    # Mengembalikan GeoDataFrame mentah tanpa .dissolve() untuk mengurangi beban memori
+    return gdf
 
 # ==========================================
 # 3. TAMPILAN WEB & LOGIKA UTAMA
@@ -110,23 +109,28 @@ with st.sidebar:
     
     pt_files = [f.stem for f in Path("data/pt").glob("*.geojson")]
     if not pt_files:
-        st.warning("Tambahkan file geojson (misal: THIP.geojson, Region_2.geojson) ke folder data/pt/")
+        st.warning("Tambahkan file geojson (misal: THIP.geojson) ke folder data/pt/")
         pt_files = ["Contoh_Area"] 
         
     selected_pt = st.selectbox("Pilih Area / Company", pt_files)
     generate_btn = st.button("Generate Peta", type="primary")
 
 if generate_btn:
-    with st.spinner("Memproses data cuaca dan merender layout..."):
+    st.info("🔄 Memulai proses... pantau indikator di bawah ini.")
+    
+    with st.spinner("Memproses data..."):
         
         # 1. Load Data Hujan
         try:
-            gdf_hujan = get_ecmwf_dissolved(date_str)
+            st.write("📥 Mengunduh dan memproses GRIB ECMWF (Mungkin butuh waktu beberapa saat)...")
+            gdf_hujan = get_ecmwf_spatial(date_str)
+            st.write("✅ Data ECMWF berhasil diekstrak ke poligon spasial!")
         except Exception as e:
             st.error(f"Gagal memproses data ECMWF: {e}")
             st.stop()
 
         # 2. Load Batas Negara (Fallback ke Natural Earth jika file lokal tidak ada)
+        st.write("🗺️ Menyiapkan peta dasar dan batas wilayah perusahaan...")
         negara_path = Path("data/batas_negara.geojson")
         if negara_path.exists():
             negara_gdf = gpd.read_file(negara_path)
@@ -148,6 +152,8 @@ if generate_btn:
         # ==========================================
         # 4. RENDERING MATPLOTLIB GRIDSPEC
         # ==========================================
+        st.write("🎨 Merender layout gambar dengan Matplotlib...")
+        
         fig = plt.figure(figsize=(15, 9), facecolor='white')
         gs = GridSpec(2, 2, width_ratios=[2.5, 1], height_ratios=[1, 1], wspace=0.01, hspace=0.01)
         
@@ -180,7 +186,7 @@ if generate_btn:
         ax_main.set_xlim(90, 141) # Asia Tenggara
         ax_main.set_ylim(-12, 24)
 
-        # Dapatkan batas bounding box PT (Kini valid karena sudah dikonversi ke derajat/4326)
+        # Dapatkan batas bounding box PT
         minx, miny, maxx, maxy = pt_gdf.total_bounds
         
         ax_reg.set_xlim(minx - 5, maxx + 5)
@@ -207,6 +213,7 @@ if generate_btn:
         plt.tight_layout(rect=[0, 0.10, 1, 0.93]) 
 
         # 8. Render Gambar di Streamlit & Tombol Unduh
+        st.write("🎉 Rendering gambar telah selesai!")
         st.pyplot(fig)
 
         buf = io.BytesIO()
