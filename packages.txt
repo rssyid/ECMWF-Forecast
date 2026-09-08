@@ -1,2 +1,0 @@
-libeccodes0
-libeccodes-dev
