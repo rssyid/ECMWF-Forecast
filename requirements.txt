@@ -1,9 +1,0 @@
-streamlit
-numpy
-pandas
-xarray
-geopandas
-shapely
-ecmwf-opendata
-matplotlib
-cfgrib
